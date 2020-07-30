@@ -1,0 +1,21 @@
+{
+  "encoder": "ffmpeg",
+  "ffmpeg": "ffmpeg",
+  "ffprobe": "ffprobe",
+  "vmaf_options": {
+    "phone_model": 1
+  },
+  "seq_path": "./work",
+  "output_path": "./result",
+  "tasks": [
+    {
+      "preset": [
+        "fast",
+        "faster"
+      ],
+      "repeat_target": "preset",
+      "output_format": "mp4",
+      "template": "{encoder} -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -preset {preset} -c:v libx264 -y {output_filename}"
+    }
+  ]
+}
