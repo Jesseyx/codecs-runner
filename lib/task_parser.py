@@ -5,6 +5,8 @@ import os
 import json
 import numpy as np
 
+from lib import summary
+
 
 def generate_cmd(template, config, video_file):
     match = re.findall('{(.+?)}', template)
@@ -37,12 +39,14 @@ def calculate_scores(config, video_file):
     subprocess.run(encode_yuv_args)
 
     raw_vmaf_options = config['vmaf_options']
+    calc_psnr = raw_vmaf_options.get('psnr', 1)
+    calc_ssim = raw_vmaf_options.get('ssim', 1)
     vmaf_log_path = f'{output_path}/{output_basename}_vmaf.json'
     vmaf_options = {
         'model_path': raw_vmaf_options.get('model_path', './modal/vmaf_v0.6.1.pkl'),
         'phone_model': raw_vmaf_options.get('phone_model', 1),
-        'psnr': raw_vmaf_options.get('psnr', 1),
-        'ssim': raw_vmaf_options.get('ssim', 1),
+        'psnr': calc_psnr,
+        'ssim': calc_ssim,
         'log_path': vmaf_log_path,
         'log_fmt': 'json'
     }
@@ -59,14 +63,31 @@ def calculate_scores(config, video_file):
     subprocess.run(vmaf_run_args)
     os.unlink(temp_yuv_file)  # unlink temp yuv file
 
+    scores = []
+
     with open(vmaf_log_path, 'r') as f:
         score_contents = json.load(f)
     vmaf_scores = [frame['metrics']['vmaf'] for frame in score_contents['frames']]
     vmaf = np.mean(vmaf_scores).round(5)
     vmaf_min = round(min(vmaf_scores), 5)
     vmaf_std = np.std(vmaf_scores).round(5)
-    vmaf_data = f'{vmaf_min} | {vmaf_std} | {vmaf}'
-    print(vmaf_data)
+    scores.append([vmaf, vmaf_min, vmaf_std])
+
+    if calc_psnr:
+        psnr_scores = [frame['metrics']['psnr'] for frame in score_contents['frames']]
+        psnr = np.mean(psnr_scores).round(5)
+        psnr_min = round(min(psnr_scores), 5)
+        psnr_std = np.std(psnr_scores).round(5)
+        scores.append([psnr, psnr_min, psnr_std])
+
+    if calc_ssim:
+        ssim_scores = [frame['metrics']['ssim'] for frame in score_contents['frames']]
+        ssim = np.mean(ssim_scores).round(5)
+        ssim_min = round(min(ssim_scores), 3)
+        ssim_std = np.std(ssim_scores).round(5)
+        scores.append([ssim, ssim_min, ssim_std])
+
+    return scores
 
 
 def generate_and_run(config, video_file):
@@ -76,54 +97,89 @@ def generate_and_run(config, video_file):
     print(f'Begin encoding with cmd: {cmd}...')
 
     start_time = time.time()
-    subprocess.run(cmd)
+    subprocess.run(cmd, shell=True)
     end_time = time.time()
     time_to_convert = end_time - start_time
-    time_rounded = round(time_to_convert, 3)
     output_filename = config['output_filename']
     bitrate = video_file.measured_bitrate(os.path.getsize(output_filename))
-    print(time_rounded, bitrate)
+    encode_fps = round(time_to_convert / video_file.frame_count(), 5)
+    print(bitrate, encode_fps)
+    scores = None
     if config.get('ffmpeg') and config.get('vmaf_options'):
-        calculate_scores(config, video_file)
-    print('Done!')
+        scores = calculate_scores(config, video_file)
+
+    return bitrate, encode_fps, scores
 
 
 class Task(object):
     def __init__(self, config):
         self.config = config
 
-    def run(self, video_file):
+    def run(self, seqs_video_file):
         config = self.config
         repeat_target = config.get('repeat_target')
         output_format = config.get("output_format", "mp4")
-        if repeat_target:
-            if config[repeat_target] and len(config[repeat_target]):
-                for repeat in config[repeat_target]:
-                    config_copy = config.copy()
-                    config_copy[repeat_target] = repeat
-                    output_filename = os.path.join(config['output_path'],
-                                                   '%s_%s_%s.%s' % (video_file.basename, repeat_target,
-                                                                    repeat, output_format))
-                    config_copy['output_filename'] = output_filename
-                    generate_and_run(config_copy, video_file)
+
+        task_results = {
+            'task_name': config['task_name'],
+            'repeat_target': '',
+            'results': []
+        }
+
+        for video_file in seqs_video_file:
+            encode_results = {
+                'name': video_file.name,
+                'results': []
+            }
+            if repeat_target:
+                if config[repeat_target] and len(config[repeat_target]):
+                    task_results['repeat_target'] = repeat_target
+                    for repeat_value in config[repeat_target]:
+                        config_copy = config.copy()
+                        config_copy[repeat_target] = repeat_value
+                        output_filename = os.path.join(config['output_path'],
+                                                       '%s_%s_%s.%s' % (video_file.basename, repeat_target,
+                                                                        repeat_value, output_format))
+                        config_copy['output_filename'] = output_filename
+                        bitrate, encode_fps, scores = generate_and_run(config_copy, video_file)
+
+                        encode_results['results'].append({
+                            'repeat_value': repeat_value,
+                            'bitrate': bitrate,
+                            'encode_fps': encode_fps,
+                            'scores': scores
+                        })
+                else:
+                    print('Invalid repeat target config')
+                    return 0
             else:
-                print('Invalid repeat target config')
-                return 0
-        else:
-            config_copy = config.copy()
-            output_filename = os.path.join(config['output_path'],
-                                           '%s.%s' % (video_file.basename, output_format))
-            config_copy['output_filename'] = output_filename
-            generate_and_run(config.copy(), video_file)
+                config_copy = config.copy()
+                output_filename = os.path.join(config['output_path'],
+                                               '%s.%s' % (video_file.basename, output_format))
+                config_copy['output_filename'] = output_filename
+                bitrate, encode_fps, scores = generate_and_run(config_copy, video_file)
+
+                encode_results['results'].append({
+                    'repeat_value': '',
+                    'bitrate': bitrate,
+                    'encode_fps': encode_fps,
+                    'scores': scores
+                })
+
+            task_results['results'].append(encode_results)
+
+        summary.record_task_results(task_results)
 
 
 def generate_tasks(config):
     tasks_list = config['tasks']
     tasks = set()
-    for item in tasks_list:
+    for (index, item) in enumerate(tasks_list):
         task_config = item.copy()
         for key in config:
             if key != 'tasks' and key not in task_config:
                 task_config[key] = config[key]
+        if not task_config.get('task_name'):
+            task_config['task_name'] = f'task_{index}'
         tasks.add(Task(task_config))
     return tasks

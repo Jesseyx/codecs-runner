@@ -12,6 +12,7 @@ class VideoFile(object):
     def __init__(self, filename):
         """ Parse the file name to find width, height and framerate. """
         self.filename = filename
+        self.name = os.path.basename(filename)
         match = re.search(r'_(\d+)x(\d+)_(\d+)', filename)
         if match:
             self.width = int(match.group(1))
@@ -25,7 +26,7 @@ class VideoFile(object):
                 self.framerate = int(match.group(3))
             else:
                 raise Error("Unable to parse filename " + filename)
-        self.basename = os.path.splitext(os.path.basename(filename))[0]
+        self.basename = os.path.splitext(self.name)[0]
 
     def measured_bitrate(self, encoded_size):
         """Returns bitrate of an encoded file in kilobits per second.
@@ -43,7 +44,6 @@ class VideoFile(object):
 
     def clip_time(self):
         return float(self.frame_count()) / self.framerate
-
 
 
 def generate_seqs(name):

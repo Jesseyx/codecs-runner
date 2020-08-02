@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 
-from lib import seq_picker, task_parser
+from lib import seq_picker, task_parser, summary
 
 
 def main():
@@ -24,9 +24,11 @@ def main():
         os.makedirs(output_path)
     seqs_video_file = seq_picker.pick_seqs(seq_path)
     tasks = task_parser.generate_tasks(config)
-    for seq_video_file in seqs_video_file:
-        for task in tasks:
-            task.run(seq_video_file)
+    for task in tasks:
+        task.run(seqs_video_file)
+
+    # save
+    summary.save(os.path.join(output_path, 'encoder_result.xlsx'))
     return 0
 
 
