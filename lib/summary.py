@@ -6,8 +6,8 @@ import json
 wb = openpyxl.Workbook()
 wb.remove(wb.active)
 
-title_cols = ['filename', 'target', 'time second for encode per frame', 'bitrate', 'vmaf', 'vmaf min', 'vmaf std',
-              'psnr', 'psnr min', 'psnr std', 'ssim', 'ssim min', 'ssim std']
+title_cols = ['filename', 'frame count', 'target', 'time second for encode per frame', 'bitrate',
+              'vmaf', 'vmaf min', 'vmaf std', 'psnr', 'psnr min', 'psnr std', 'ssim', 'ssim min', 'ssim std']
 
 
 def record_task_results(data):
@@ -21,7 +21,7 @@ def record_task_results(data):
             _ = ws.cell(column=col, row=row, value=title_cols[col - 1])
 
     if data['repeat_target']:
-        target_col = f'{get_column_letter(2)}${start_row}'
+        target_col = f'{get_column_letter(3)}${start_row}'
         ws[target_col] = f'{ws[target_col].value}({data["repeat_target"]})'
 
     for row in ws.iter_rows(min_row=start_row, max_row=start_row, max_col=len(title_cols)):
@@ -33,8 +33,11 @@ def record_task_results(data):
     for file_item in data['results']:
         file_results = file_item['results']
         for index, result in enumerate(file_results):
-            values = [file_item['name'] if index == 0 else '', result['repeat_value'], result['encode_fps'],
-                      result['bitrate']]
+            padding_arr = ['', '']
+            if index == 0:
+                padding_arr = [file_item['name'], file_item['frame_count']]
+
+            values = padding_arr + [result['repeat_value'], result['encode_fps'], result['bitrate']]
             for score in result['scores']:
                 values = values + score
 
@@ -42,6 +45,7 @@ def record_task_results(data):
                 for col in range(start_col, start_col + len(title_cols)):
                     _ = ws.cell(column=col, row=row, value=values[col - 1])
             start_row += 1
+
         start_row += 1
 
 

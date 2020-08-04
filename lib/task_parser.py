@@ -129,6 +129,7 @@ class Task(object):
         for video_file in seqs_video_file:
             encode_results = {
                 'name': video_file.name,
+                'frame_count': video_file.frame_count(),
                 'results': []
             }
             if repeat_target:
