@@ -3,22 +3,33 @@ import time
 import subprocess
 import os
 import json
+import glob
 import numpy as np
 
 from lib import summary
 
 
-def generate_cmd(template, config, video_file):
+def generate_cmd(template, config, video_file, two_pass_config=None):
+    if not two_pass_config:
+        two_pass_config = {}
+    if two_pass_config.get('pass_num') == 1:
+        two_pass_config.update({'output_format': 'null', 'output_filename': '-'})
+    extend_data = {}
+    for data in [config, vars(video_file), two_pass_config]:
+        extend_data.update(data)
     match = re.findall('{(.+?)}', template)
     command = template
     for pattern in match:
-        val = config.get(pattern)
-        if not val:
-            val = getattr(video_file, pattern)
+        val = extend_data.get(pattern)
         if not val:
             continue
         command = command.replace('{' + pattern + '}', str(val))
     return command
+
+
+def unlink_2_pass_log():
+    for log in glob.glob(os.path.join(os.getcwd(), '*2pass-*')):
+        os.unlink(log)
 
 
 def calculate_scores(config, video_file):
@@ -93,21 +104,33 @@ def calculate_scores(config, video_file):
 def generate_and_run(config, video_file):
     print(config)
     template = config['template']
-    cmd = generate_cmd(template, config, video_file)
-    print(f'Begin encoding with cmd: {cmd}...')
+
+    cmd_list = []
+    two_pass_mode = config.get('two_pass')
+    if two_pass_mode:
+        for pass_num in range(1, 3):
+            cmd_list.append(generate_cmd(template, config, video_file,
+                                         {'pass_num': pass_num}))
+    else:
+        cmd_list.append(generate_cmd(template, config, video_file))
+
+    print(f'Begin encoding with cmd: {cmd_list}...')
 
     start_time = time.time()
-    subprocess.run(cmd, shell=True)
+    for cmd in cmd_list:
+        subprocess.run(cmd, shell=True)
     end_time = time.time()
+    if two_pass_mode:
+        unlink_2_pass_log()
     time_to_convert = end_time - start_time
     output_filename = config['output_filename']
     bitrate = video_file.measured_bitrate(os.path.getsize(output_filename))
     encode_fps = round(time_to_convert / video_file.frame_count(), 5)
     print(bitrate, encode_fps)
+
     scores = None
     if config.get('ffmpeg') and config.get('vmaf_options'):
         scores = calculate_scores(config, video_file)
-
     return bitrate, encode_fps, scores
 
 
