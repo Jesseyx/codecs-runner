@@ -138,8 +138,8 @@ class Task(object):
     def __init__(self, config):
         self.config = config
 
-    def run(self, seqs_video_file):
-        config = self.config
+    def run(self, seqs_video_file, last_kept_bitrate):
+        config = self.config.copy()
         repeat_target = config.get('repeat_target')
         output_format = config.get("output_format", "mp4")
 
@@ -149,13 +149,20 @@ class Task(object):
             'results': []
         }
 
+        current_kept_bitrate = {}
+
         for video_file in seqs_video_file:
             encode_results = {
                 'name': video_file.name,
                 'frame_count': video_file.frame_count(),
                 'results': []
             }
+            encode_bitrate_list = []
             if repeat_target:
+                # add last bitrate
+                if not config.get('bitrate') and last_kept_bitrate and last_kept_bitrate.get(video_file.name):
+                    config['bitrate'] = last_kept_bitrate[video_file.name]
+
                 if config[repeat_target] and len(config[repeat_target]):
                     task_results['repeat_target'] = repeat_target
                     for repeat_value in config[repeat_target]:
@@ -165,6 +172,7 @@ class Task(object):
                                                        '%s_%s_%s.%s' % (video_file.basename, repeat_target,
                                                                         repeat_value, output_format))
                         config_copy['output_filename'] = output_filename
+                        # encode
                         bitrate, encode_fps, scores = generate_and_run(config_copy, video_file)
 
                         encode_results['results'].append({
@@ -173,6 +181,7 @@ class Task(object):
                             'encode_fps': encode_fps,
                             'scores': scores
                         })
+                        encode_bitrate_list.append(bitrate)
                 else:
                     print('Invalid repeat target config')
                     return 0
@@ -189,15 +198,18 @@ class Task(object):
                     'encode_fps': encode_fps,
                     'scores': scores
                 })
+                encode_bitrate_list.append(bitrate)
 
             task_results['results'].append(encode_results)
+            current_kept_bitrate[video_file.name] = encode_bitrate_list
 
         summary.record_task_results(task_results)
+        return current_kept_bitrate
 
 
 def generate_tasks(config):
     tasks_list = config['tasks']
-    tasks = set()
+    tasks = []
     for (index, item) in enumerate(tasks_list):
         task_config = item.copy()
         for key in config:
@@ -205,5 +217,5 @@ def generate_tasks(config):
                 task_config[key] = config[key]
         if not task_config.get('task_name'):
             task_config['task_name'] = f'task_{index}'
-        tasks.add(Task(task_config))
+        tasks.append(Task(task_config))
     return tasks

@@ -24,8 +24,9 @@ def main():
         os.makedirs(output_path)
     seqs_video_file = seq_picker.pick_seqs(seq_path)
     tasks = task_parser.generate_tasks(config)
+    kept_bitrate = None
     for task in tasks:
-        task.run(seqs_video_file)
+        kept_bitrate = task.run(seqs_video_file, kept_bitrate)
 
     # save
     summary.save(os.path.join(output_path, 'encoder_result.xlsx'))
