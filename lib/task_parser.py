@@ -9,20 +9,6 @@ import numpy as np
 from lib import summary
 
 
-def generate_cmd(template, config, video_file):
-    extend_data = {}
-    for data in [config, vars(video_file)]:
-        extend_data.update(data)
-    match = re.findall('{(.+?)}', template)
-    command = template
-    for pattern in match:
-        val = extend_data.get(pattern)
-        if not val:
-            continue
-        command = command.replace('{' + pattern + '}', str(val))
-    return command
-
-
 def unlink_2_pass_log():
     for log in glob.glob(os.path.join(os.getcwd(), '*2pass-*')):
         os.unlink(log)
@@ -97,36 +83,15 @@ def calculate_scores(config, video_file):
     return scores
 
 
-def generate_and_run(config, video_file):
-    print(config)
-    template = config['template']
-
-    two_pass_mode = config.get('two_pass')
-
-    cmd = generate_cmd(template, config, video_file)
-
-    print(f'Begin encoding with cmd: {cmd}...')
-
-    start_time = time.time()
-    subprocess.run(cmd, shell=True)
-    end_time = time.time()
-    if two_pass_mode:
-        unlink_2_pass_log()
-    time_to_convert = end_time - start_time
-    output_filename = config['output_filename']
-    bitrate = video_file.measured_bitrate(os.path.getsize(output_filename))
-    encode_fps = round(time_to_convert / video_file.frame_count(), 5)
-    print(bitrate, encode_fps)
-
-    scores = None
-    if config.get('ffmpeg') and config.get('vmaf_options'):
-        scores = calculate_scores(config, video_file)
-    return bitrate, encode_fps, scores
+def compile_template(template):
+    tmpl = re.sub(r'{([^[}]+)(\[?[^}]+)?}', r"{self['\1']\2}", template)
+    return eval(f'lambda self: f"{tmpl}"')
 
 
 class Task(object):
     def __init__(self, config):
         self.config = config
+        self.tmpl_func = compile_template(config['template'])
 
     def run(self, seqs_video_file, last_kept_bitrate):
         config = self.config.copy()
@@ -163,7 +128,7 @@ class Task(object):
                                                                         repeat_value, output_format))
                         config_copy['output_filename'] = output_filename
                         # encode
-                        bitrate, encode_fps, scores = generate_and_run(config_copy, video_file)
+                        bitrate, encode_fps, scores = self._run_cmd(config_copy, video_file)
 
                         encode_results['results'].append({
                             'repeat_value': repeat_value,
@@ -180,7 +145,7 @@ class Task(object):
                 output_filename = os.path.join(config['output_path'],
                                                '%s.%s' % (video_file.basename, output_format))
                 config_copy['output_filename'] = output_filename
-                bitrate, encode_fps, scores = generate_and_run(config_copy, video_file)
+                bitrate, encode_fps, scores = self._run_cmd(config_copy, video_file)
 
                 encode_results['results'].append({
                     'repeat_value': '',
@@ -195,6 +160,37 @@ class Task(object):
 
         summary.record_task_results(task_results)
         return current_kept_bitrate
+
+    def _run_cmd(self, config, video_file):
+        print(config)
+        two_pass_mode = config.get('two_pass')
+
+        cmd = self._generate_cmd(config, video_file)
+
+        print(f'Begin encoding with cmd: {cmd}...')
+
+        start_time = time.time()
+        subprocess.run(cmd, shell=True)
+        end_time = time.time()
+        if two_pass_mode:
+            unlink_2_pass_log()
+        time_to_convert = end_time - start_time
+        output_filename = config['output_filename']
+        bitrate = video_file.measured_bitrate(os.path.getsize(output_filename))
+        encode_fps = round(time_to_convert / video_file.frame_count(), 5)
+        print(bitrate, encode_fps)
+
+        scores = None
+        if config.get('ffmpeg') and config.get('vmaf_options'):
+            scores = calculate_scores(config, video_file)
+        return bitrate, encode_fps, scores
+
+    def _generate_cmd(self, config, video_file):
+        extend_data = {}
+        for data in [config, vars(video_file)]:
+            extend_data.update(data)
+
+        return self.tmpl_func(extend_data)
 
 
 def generate_tasks(config):
