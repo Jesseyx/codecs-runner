@@ -9,13 +9,9 @@ import numpy as np
 from lib import summary
 
 
-def generate_cmd(template, config, video_file, two_pass_config=None):
-    if not two_pass_config:
-        two_pass_config = {}
-    if two_pass_config.get('pass_num') == 1:
-        two_pass_config.update({'output_format': 'null', 'output_filename': '-'})
+def generate_cmd(template, config, video_file):
     extend_data = {}
-    for data in [config, vars(video_file), two_pass_config]:
+    for data in [config, vars(video_file)]:
         extend_data.update(data)
     match = re.findall('{(.+?)}', template)
     command = template
@@ -105,20 +101,14 @@ def generate_and_run(config, video_file):
     print(config)
     template = config['template']
 
-    cmd_list = []
     two_pass_mode = config.get('two_pass')
-    if two_pass_mode:
-        for pass_num in range(1, 3):
-            cmd_list.append(generate_cmd(template, config, video_file,
-                                         {'pass_num': pass_num}))
-    else:
-        cmd_list.append(generate_cmd(template, config, video_file))
 
-    print(f'Begin encoding with cmd: {cmd_list}...')
+    cmd = generate_cmd(template, config, video_file)
+
+    print(f'Begin encoding with cmd: {cmd}...')
 
     start_time = time.time()
-    for cmd in cmd_list:
-        subprocess.run(cmd, shell=True)
+    subprocess.run(cmd, shell=True)
     end_time = time.time()
     if two_pass_mode:
         unlink_2_pass_log()
