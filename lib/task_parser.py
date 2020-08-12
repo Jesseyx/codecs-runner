@@ -3,20 +3,16 @@ import time
 import subprocess
 import os
 import json
-import glob
 import numpy as np
 
-from lib import summary
+from lib import bitrate_keeper
+
+keeper = bitrate_keeper.BitrateKeeper()
 
 
-def unlink_2_pass_log():
-    for log in glob.glob(os.path.join(os.getcwd(), '*2pass-*')):
-        os.unlink(log)
-
-
-def calculate_scores(config, video_file):
-    output_path = config['output_path']
-    output_filename = config['output_filename']
+def calculate_scores(seq_config, video_file):
+    output_path = seq_config['output_path']
+    output_filename = seq_config['output_filename']
     output_basename = os.path.splitext(os.path.basename(output_filename))[0]
 
     temp_yuv_file = os.path.join(output_path,
@@ -25,13 +21,13 @@ def calculate_scores(config, video_file):
         print('Removing temp file before decode:', temp_yuv_file)
         os.unlink(temp_yuv_file)
     encode_yuv_args = [
-        config['ffmpeg'], '-loglevel', 'warning', '-i', output_filename, temp_yuv_file
+        seq_config['ffmpeg'], '-y', '-loglevel', 'warning', '-i', output_filename, temp_yuv_file
     ]
     print(f'Begin encoding temp yuv file with cmd: {" ".join(encode_yuv_args)}...')
     # generate temp yuv
     subprocess.run(encode_yuv_args)
 
-    raw_vmaf_options = config['vmaf_options']
+    raw_vmaf_options = seq_config['vmaf_options']
     calc_psnr = raw_vmaf_options.get('psnr', 1)
     calc_ssim = raw_vmaf_options.get('ssim', 1)
     vmaf_log_path = f'{output_path}/{output_basename}_vmaf.json'
@@ -83,9 +79,36 @@ def calculate_scores(config, video_file):
     return scores
 
 
+def run_cmd(seq_config, video_file):
+    cmd = seq_config['template']
+    print(f'Begin encoding with cmd: {cmd}...')
+
+    start_time = time.time()
+    subprocess.run(cmd, shell=True)
+    end_time = time.time()
+
+    time_to_convert = end_time - start_time
+    output_filename = seq_config['output_filename']
+    bitrate = video_file.measured_bitrate(os.path.getsize(output_filename))
+    encode_fps = round(time_to_convert / video_file.frame_count(), 5)
+    print(bitrate, encode_fps)
+
+    scores = None
+    if seq_config.get('ffmpeg') and seq_config.get('vmaf_options'):
+        scores = calculate_scores(seq_config, video_file)
+    return bitrate, encode_fps, scores
+
+
+def create_config(*dict_list):
+    extend_data = {}
+    for data in dict_list:
+        extend_data.update(data)
+    return extend_data
+
+
 def compile_template(template):
-    tmpl = re.sub(r'{([^[}]+)(\[?[^}]+)?}', r"{self['\1']\2}", template)
-    return eval(f'lambda self: f"{tmpl}"')
+    template = re.sub(r'{([^[}]+)(\[?[^}]+)?}', r"{self['\1']\2}", template)
+    return eval(f'lambda self: f"{template}"')
 
 
 class Task(object):
@@ -93,104 +116,101 @@ class Task(object):
         self.config = config
         self.tmpl_func = compile_template(config['template'])
 
-    def run(self, seqs_video_file, last_kept_bitrate):
-        config = self.config.copy()
         repeat_target = config.get('repeat_target')
-        output_format = config.get("output_format", "mp4")
+        is_repeat = bool(repeat_target)
+        if repeat_target:
+            repeat_list = config.get(repeat_target)
+            is_repeat = repeat_list and len(repeat_list) or config.get('use_task_bitrate')
+        if repeat_target and not is_repeat:
+            print('Invalid repeat target config, repeat config will be ignored!')
+        self.is_repeat = is_repeat
 
-        task_results = {
-            'task_name': config['task_name'],
-            'repeat_target': '',
-            'results': []
-        }
+    def run(self, videos_file):
+        task_config = self.config
+        is_repeat = self.is_repeat
 
-        current_kept_bitrate = {}
+        task_name = task_config['task_name']
+        repeat_target = task_config['repeat_target'] if is_repeat else ''
+        task_results = []
 
-        for video_file in seqs_video_file:
-            encode_results = {
-                'name': video_file.name,
-                'frame_count': video_file.frame_count(),
-                'results': []
-            }
-            encode_bitrate_list = []
-            if repeat_target:
-                # add last bitrate
-                if not config.get('bitrate') and last_kept_bitrate and last_kept_bitrate.get(video_file.name):
-                    config['bitrate'] = last_kept_bitrate[video_file.name]
-
-                if config[repeat_target] and len(config[repeat_target]):
-                    task_results['repeat_target'] = repeat_target
-                    for repeat_value in config[repeat_target]:
-                        config_copy = config.copy()
-                        config_copy[repeat_target] = repeat_value
-                        output_filename = os.path.join(config['output_path'],
-                                                       '%s_%s_%s.%s' % (video_file.basename, repeat_target,
-                                                                        repeat_value, output_format))
-                        config_copy['output_filename'] = output_filename
-                        # encode
-                        bitrate, encode_fps, scores = self._run_cmd(config_copy, video_file)
-
-                        encode_results['results'].append({
-                            'repeat_value': repeat_value,
-                            'bitrate': bitrate,
-                            'encode_fps': encode_fps,
-                            'scores': scores
-                        })
-                        encode_bitrate_list.append(bitrate)
+        for video_file in videos_file:
+            file_results = []
+            if is_repeat:
+                if repeat_target == 'bitrate' \
+                   and not task_config.get(repeat_target) and task_config.get('use_task_bitrate'):
+                    repeat_values = keeper.get_bitrate_list(task_config.get('use_task_bitrate'), video_file.name)
                 else:
-                    print('Invalid repeat target config')
-                    return 0
-            else:
-                config_copy = config.copy()
-                output_filename = os.path.join(config['output_path'],
-                                               '%s.%s' % (video_file.basename, output_format))
-                config_copy['output_filename'] = output_filename
-                bitrate, encode_fps, scores = self._run_cmd(config_copy, video_file)
+                    repeat_values = task_config[repeat_target]
+                if not repeat_values or not len(repeat_values):
+                    print('Invalid repeat target config, error, do nothing!')
+                    continue
 
-                encode_results['results'].append({
+                for index, repeat_value in enumerate(repeat_values):
+                    # encode
+                    bitrate, encode_fps, scores = self._run_seq(video_file, repeat_value)
+                    # add file repeat results
+                    file_results.append({
+                        'repeat_value': json.dumps(repeat_value),
+                        'bitrate': bitrate,
+                        'encode_fps': encode_fps,
+                        'scores': scores
+                    })
+                    keeper.set_bitrate(task_name, video_file.name, bitrate)
+            else:
+                # encode
+                bitrate, encode_fps, scores = self._run_seq(video_file)
+                # add file repeat results
+                file_results.append({
                     'repeat_value': '',
                     'bitrate': bitrate,
                     'encode_fps': encode_fps,
                     'scores': scores
                 })
-                encode_bitrate_list.append(bitrate)
+                keeper.set_bitrate(task_name, video_file.name, bitrate)
 
-            task_results['results'].append(encode_results)
-            current_kept_bitrate[video_file.name] = encode_bitrate_list
+            # add file results
+            task_results.append({
+                'name': video_file.name,
+                'frame_count': video_file.frame_count(),
+                'results': file_results
+            })
 
-        summary.record_task_results(task_results)
-        return current_kept_bitrate
+        return {
+            'task_name': task_name,
+            'repeat_target': repeat_target,
+            'results': task_results
+        }
 
-    def _run_cmd(self, config, video_file):
-        print(config)
-        two_pass_mode = config.get('two_pass')
+    def _run_seq(self, video_file, repeat_value=None):
+        task_config = self.config
+        is_repeat = self.is_repeat
+        output_format = task_config.get('output_format', 'mp4')
 
-        cmd = self._generate_cmd(config, video_file)
+        if is_repeat and repeat_value:
+            repeat_target = task_config['repeat_target']
 
-        print(f'Begin encoding with cmd: {cmd}...')
+            # fix repeat_value is dict
+            repeat_value_text = repeat_value
+            if type(repeat_value) == dict:
+                repeat_value_text = '_'.join([str(v) for v in filter(lambda v: type(v) != dict, repeat_value.values())])
 
-        start_time = time.time()
-        subprocess.run(cmd, shell=True)
-        end_time = time.time()
-        if two_pass_mode:
-            unlink_2_pass_log()
-        time_to_convert = end_time - start_time
-        output_filename = config['output_filename']
-        bitrate = video_file.measured_bitrate(os.path.getsize(output_filename))
-        encode_fps = round(time_to_convert / video_file.frame_count(), 5)
-        print(bitrate, encode_fps)
+            output_filename = os.path.join(
+                task_config['output_path'],
+                '%s_%s_%s.%s' % (video_file.basename, repeat_target, repeat_value_text, output_format)
+            )
+            extra_config = {repeat_target: repeat_value, 'output_filename': output_filename}
+        else:
+            output_filename = os.path.join(
+                task_config['output_path'],
+                '%s.%s' % (video_file.basename, output_format)
+            )
+            extra_config = {'output_filename': output_filename}
 
-        scores = None
-        if config.get('ffmpeg') and config.get('vmaf_options'):
-            scores = calculate_scores(config, video_file)
-        return bitrate, encode_fps, scores
+        seq_config = create_config(task_config, extra_config, vars(video_file))
+        seq_config['template'] = self.tmpl_func(seq_config)
 
-    def _generate_cmd(self, config, video_file):
-        extend_data = {}
-        for data in [config, vars(video_file)]:
-            extend_data.update(data)
-
-        return self.tmpl_func(extend_data)
+        # encode
+        return run_cmd(seq_config, video_file)
 
 
 def generate_tasks(config):
