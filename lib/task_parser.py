@@ -56,7 +56,7 @@ def calculate_scores(seq_config, video_file):
     }
     vmaf_options = ':'.join(f'{key}={value}' for key, value in vmaf_options.items())
     vmaf_run_args = [
-        'ffmpeg', '-loglevel', 'error', '-stats',
+        seq_config['ffmpeg'], '-loglevel', 'error', '-stats',
         '-s', f'{output_width}x{output_height}', '-r', f'{video_file.framerate}', '-i', temp_yuv_file,
         '-s', f'{input_width}x{input_height}', '-r', f'{video_file.framerate}', '-i', video_file.filename,
         '-lavfi', f'[0:v]setpts=PTS-STARTPTS{scale_arg}[main];[1:v]setpts=PTS-STARTPTS[ref];[main][ref]'f'libvmaf={vmaf_options}',
