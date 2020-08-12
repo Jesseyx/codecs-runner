@@ -27,6 +27,21 @@ def calculate_scores(seq_config, video_file):
     # generate temp yuv
     subprocess.run(encode_yuv_args)
 
+    # Detect video width and height
+    # todo use ffprobe?
+    input_width = video_file.width
+    input_height = video_file.height
+    output_width = input_height
+    output_height = input_height
+    repeat_value = seq_config.get(seq_config['repeat_target']) if seq_config.get('repeat_target') else None
+    if repeat_value and type(repeat_value) == dict and repeat_value.get('w') and repeat_value.get('h'):
+        output_width = repeat_value['w']
+        output_height = repeat_value['h']
+    if input_width != output_width or input_height != output_height:
+        scale_arg = f',scale={input_width}x{input_height}'
+    else:
+        scale_arg = ''
+
     raw_vmaf_options = seq_config['vmaf_options']
     calc_psnr = raw_vmaf_options.get('psnr', 1)
     calc_ssim = raw_vmaf_options.get('ssim', 1)
@@ -42,9 +57,9 @@ def calculate_scores(seq_config, video_file):
     vmaf_options = ':'.join(f'{key}={value}' for key, value in vmaf_options.items())
     vmaf_run_args = [
         'ffmpeg', '-loglevel', 'error', '-stats',
-        '-s', f'{video_file.width}x{video_file.height}', '-r', f'{video_file.framerate}', '-i', temp_yuv_file,
-        '-s', f'{video_file.width}x{video_file.height}', '-r', f'{video_file.framerate}', '-i', video_file.filename,
-        '-lavfi', '[0:v]setpts=PTS-STARTPTS[main];[1:v]setpts=PTS-STARTPTS[ref];[main][ref]'f'libvmaf={vmaf_options}',
+        '-s', f'{output_width}x{output_height}', '-r', f'{video_file.framerate}', '-i', temp_yuv_file,
+        '-s', f'{input_width}x{input_height}', '-r', f'{video_file.framerate}', '-i', video_file.filename,
+        '-lavfi', f'[0:v]setpts=PTS-STARTPTS{scale_arg}[main];[1:v]setpts=PTS-STARTPTS[ref];[main][ref]'f'libvmaf={vmaf_options}',
         '-f', 'null', '-'
     ]
     print(f'Begin calculating the quality achieved with cmd: {" ".join(vmaf_run_args)}')
