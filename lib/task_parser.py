@@ -31,7 +31,7 @@ def calculate_scores(seq_config, video_file):
     # todo use ffprobe?
     input_width = video_file.width
     input_height = video_file.height
-    output_width = input_height
+    output_width = input_width
     output_height = input_height
     repeat_value = seq_config.get(seq_config['repeat_target']) if seq_config.get('repeat_target') else None
     if repeat_value and type(repeat_value) == dict and repeat_value.get('w') and repeat_value.get('h'):
