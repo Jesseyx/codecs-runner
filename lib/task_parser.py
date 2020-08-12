@@ -105,7 +105,7 @@ def run_cmd(seq_config, video_file):
     time_to_convert = end_time - start_time
     output_filename = seq_config['output_filename']
     bitrate = video_file.measured_bitrate(os.path.getsize(output_filename))
-    encode_fps = round(time_to_convert / video_file.frame_count(), 5)
+    encode_fps = round(1 / (time_to_convert / video_file.frame_count()), 5)
     print(bitrate, encode_fps)
 
     scores = None

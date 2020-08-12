@@ -6,7 +6,7 @@ import json
 wb = openpyxl.Workbook()
 wb.remove(wb.active)
 
-title_cols = ['filename', 'frame count', 'target', 'time second for encode per frame', 'bitrate',
+title_cols = ['filename', 'frame count', 'target', 'encode fps', 'bitrate',
               'vmaf', 'vmaf min', 'vmaf std', 'psnr', 'psnr min', 'psnr std', 'ssim', 'ssim min', 'ssim std']
 
 
