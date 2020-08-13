@@ -10,6 +10,21 @@ from lib import bitrate_keeper
 keeper = bitrate_keeper.BitrateKeeper()
 
 
+def get_video_properties(ffprobe: str, video_path: str):
+    if not os.path.isfile(video_path) or not os.access(video_path, os.R_OK):
+        raise RuntimeError(f'File not found or inaccessible: {video_path}')
+
+    output = subprocess.check_output(
+        [ffprobe, '-loglevel', 'panic', '-select_streams', 'v:0', '-show_streams', '-print_format', 'json', video_path]
+    )
+    props = json.loads(output)
+
+    if 'streams' not in props or not props['streams']:
+        raise RuntimeError(f'No usable video stream found: {video_path}')
+
+    return props['streams'][0]
+
+
 def calculate_scores(seq_config, video_file):
     output_path = seq_config['output_path']
     output_filename = seq_config['output_filename']
@@ -28,15 +43,11 @@ def calculate_scores(seq_config, video_file):
     subprocess.run(encode_yuv_args)
 
     # Detect video width and height
-    # todo use ffprobe?
+    output_props = get_video_properties(seq_config['ffprobe'], output_filename)
+    output_width = output_props['width']
+    output_height = output_props['height']
     input_width = video_file.width
     input_height = video_file.height
-    output_width = input_width
-    output_height = input_height
-    repeat_value = seq_config.get(seq_config['repeat_target']) if seq_config.get('repeat_target') else None
-    if repeat_value and type(repeat_value) == dict and repeat_value.get('w') and repeat_value.get('h'):
-        output_width = repeat_value['w']
-        output_height = repeat_value['h']
     if input_width != output_width or input_height != output_height:
         scale_arg = f',scale={input_width}x{input_height}'
     else:
@@ -59,7 +70,8 @@ def calculate_scores(seq_config, video_file):
         seq_config['ffmpeg'], '-loglevel', 'error', '-stats',
         '-s', f'{output_width}x{output_height}', '-r', f'{video_file.framerate}', '-i', temp_yuv_file,
         '-s', f'{input_width}x{input_height}', '-r', f'{video_file.framerate}', '-i', video_file.filename,
-        '-lavfi', f'[0:v]setpts=PTS-STARTPTS{scale_arg}[main];[1:v]setpts=PTS-STARTPTS[ref];[main][ref]'f'libvmaf={vmaf_options}',
+        '-lavfi',
+        f'[0:v]setpts=PTS-STARTPTS{scale_arg}[main];[1:v]setpts=PTS-STARTPTS[ref];[main][ref]'f'libvmaf={vmaf_options}',
         '-f', 'null', '-'
     ]
     print(f'Begin calculating the quality achieved with cmd: {" ".join(vmaf_run_args)}')
@@ -109,8 +121,10 @@ def run_cmd(seq_config, video_file):
     print(bitrate, encode_fps)
 
     scores = None
-    if seq_config.get('ffmpeg') and seq_config.get('vmaf_options'):
+    if seq_config.get('ffmpeg') and seq_config.get('ffprobe') and seq_config.get('vmaf_options'):
         scores = calculate_scores(seq_config, video_file)
+    else:
+        print('If you want calculate scores, must provide ffmpeg, ffprobe, vmaf_options config')
     return bitrate, encode_fps, scores
 
 
@@ -200,6 +214,7 @@ class Task(object):
         task_config = self.config
         is_repeat = self.is_repeat
         output_format = task_config.get('output_format', 'mp4')
+        task_name = '_'.join(task_config['task_name'].split())
 
         if is_repeat and repeat_value:
             repeat_target = task_config['repeat_target']
@@ -211,13 +226,13 @@ class Task(object):
 
             output_filename = os.path.join(
                 task_config['output_path'],
-                '%s_%s_%s.%s' % (video_file.basename, repeat_target, repeat_value_text, output_format)
+                '%s_%s_%s_%s.%s' % (video_file.basename, task_name, repeat_target, repeat_value_text, output_format)
             )
             extra_config = {repeat_target: repeat_value, 'output_filename': output_filename}
         else:
             output_filename = os.path.join(
                 task_config['output_path'],
-                '%s.%s' % (video_file.basename, output_format)
+                '%s_%s.%s' % (video_file.basename, task_name, output_format)
             )
             extra_config = {'output_filename': output_filename}
 
