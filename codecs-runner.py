@@ -25,9 +25,12 @@ def main():
     seqs_video_file = seq_picker.pick_seqs(seq_path)
     tasks = task_parser.generate_tasks(config)
 
-    for task in tasks:
-        task_results = task.run(seqs_video_file)
-        summary.record_task_results(task_results)
+    try:
+        for task in tasks:
+            task_results = task.run(seqs_video_file)
+            summary.record_task_results(task_results)
+    except Exception as e:
+        print(e)
 
     # save
     summary.save(os.path.join(output_path, 'encoder_result.xlsx'))

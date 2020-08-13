@@ -111,7 +111,9 @@ def run_cmd(seq_config, video_file):
     print(f'Begin encoding with cmd: {cmd}...')
 
     start_time = time.time()
-    subprocess.run(cmd, shell=True)
+    p = subprocess.run(cmd, shell=True)
+    if p.returncode != 0:
+        raise RuntimeError(f'subprocess run error, will exit')
     end_time = time.time()
 
     time_to_convert = end_time - start_time

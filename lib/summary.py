@@ -50,7 +50,8 @@ def record_task_results(data):
 
 
 def save(path):
-    wb.save(path)
+    if len(wb.sheetnames):
+        wb.save(path)
 
 
 if __name__ == '__main__':
