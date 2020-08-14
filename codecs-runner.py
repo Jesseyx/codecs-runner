@@ -29,6 +29,8 @@ def main():
         for task in tasks:
             task_results = task.run(seqs_video_file)
             summary.record_task_results(task_results)
+    except KeyboardInterrupt:
+        print('Interrupted')
     except Exception as e:
         print(e)
 
