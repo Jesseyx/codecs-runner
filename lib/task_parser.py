@@ -125,6 +125,7 @@ def run_cmd(seq_config, video_file):
     scores = None
     if seq_config.get('ffmpeg') and seq_config.get('ffprobe') and seq_config.get('vmaf_options'):
         scores = calculate_scores(seq_config, video_file)
+        print(scores)
     else:
         print('If you want calculate scores, must provide ffmpeg, ffprobe, vmaf_options config')
     return bitrate, encode_fps, scores
