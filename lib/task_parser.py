@@ -144,7 +144,7 @@ def create_config(*dict_list):
 
 def compile_template(template):
     template = re.sub(r'{([^[}]+)(\[?[^}]+)?}', r"{self['\1']\2}", template)
-    return eval(f'lambda self: f"{template}"')
+    return eval(f'''lambda self: f"""{template}"""''')
 
 
 class Task(object):
