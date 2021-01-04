@@ -1,22 +1,66 @@
 {
-  "encoder": "ffmpeg",
-  "ffmpeg": "ffmpeg",
-  "ffprobe": "ffprobe",
+  "encoder": "/data/codecs-runner/ffmpeg-4.3.1-amd64-static/ffmpeg",
+  "ffmpeg": "/data/codecs-runner/ffmpeg-4.3.1-amd64-static/ffmpeg",
+  "ffprobe": "/data/codecs-runner/ffmpeg-4.3.1-amd64-static/ffprobe",
   "vmaf_options": {
     "phone_model": 1
   },
   "seq_path": "./work",
   "output_path": "./result",
+  "bitrate_and_resolution": [
+    {
+      "bitrate_m": 2,
+      "w": 1920,
+      "h": 1080
+    },
+    {
+      "bitrate_m": 2,
+      "w": 1280,
+      "h": 720
+    }
+  ],
+  "svt_bitrate_and_resolution": [
+    {
+      "bitrate_m": 2,
+      "w": 1920,
+      "h": 1080
+    }
+  ],
   "tasks": [
     {
-      "task_name": "preset test",
-      "preset": [
-        "fast",
-        "faster"
+      "task_name": "x264 crf",
+      "crf": [
+        18, 23, 28, 31, 35, 39
       ],
-      "repeat_target": "preset",
+      "repeat_target": "crf",
       "output_format": "mp4",
-      "template": "{encoder} -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -preset {preset} -c:v libx264 -y {output_filename}"
+      "template": "{encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -preset veryslow -crf {crf} -refs 4 -g 60 -keyint_min 60 -f {output_format} {output_filename}"
+    },
+    {
+      "task_name": "x264 two-pass",
+      "use_task_bitrate": "x264 crf",
+      "repeat_target": "bitrate",
+      "output_format": "mp4",
+      "template": "{encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {bitrate}K -refs 4 -g 60 -keyint_min 60 -pass 1 -f {output_format} /dev/null && {encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {bitrate}K -refs 4 -g 60 -keyint_min 60 -pass 2 -f {output_format} {output_filename}"
+    },
+    {
+      "task_name": "x264 live",
+      "repeat_target": "bitrate_and_resolution",
+      "output_format": "mp4",
+      "template": "{encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -x264-params \"nal-hrd=cbr\" -pix_fmt yuv420p -profile:v main -preset fast -b:v {bitrate_and_resolution['bitrate_m'] * 1000}k -minrate {bitrate_and_resolution['bitrate_m'] * 1000}k -maxrate {bitrate_and_resolution['bitrate_m'] * 1000}k -bufsize {bitrate_and_resolution['bitrate_m'] * 1000 * 2}k -s {bitrate_and_resolution['w']}x{bitrate_and_resolution['h']} -g 180 -keyint_min 180 -f {output_format} {output_filename}"
+    },
+    {
+      "task_name": "vp9 live",
+      "repeat_target": "bitrate_and_resolution",
+      "output_format": "webm",
+      "template": "{encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libvpx-vp9 -pix_fmt yuv420p -quality realtime -speed 5 -threads 16 -row-mt 1 -tile-columns 4 -frame-parallel 1 -qmin 4 -qmax 48 -b:v {bitrate_and_resolution['bitrate_m'] * 1000}k -minrate {bitrate_and_resolution['bitrate_m'] * 1000}k -maxrate {bitrate_and_resolution['bitrate_m'] * 1000}k -bufsize {bitrate_and_resolution['bitrate_m'] * 1000 * 2}k -s {bitrate_and_resolution['w']}x{bitrate_and_resolution['h']} -g 180 -keyint_min 180 -f {output_format} {output_filename}"
+    },
+    {
+      "encoder": "SvtVp9EncApp",
+      "task_name": "svt-vp9 live",
+      "repeat_target": "svt_bitrate_and_resolution",
+      "output_format": "webm",
+      "template": "{encoder} -i {filename} -enc-mode 5 -tune 0 -w {width} -h {height} -n 0 -fps {framerate} -rc 1 -tbr {svt_bitrate_and_resolution['bitrate_m'] * 1000 * 1000} -vbv-maxrate {svt_bitrate_and_resolution['bitrate_m'] * 1000 * 1000} -vbv-bufsize {svt_bitrate_and_resolution['bitrate_m'] * 1000 * 1000 * 2} -b {output_filename}"
     }
   ]
 }
