@@ -64,3 +64,14 @@ Sequence naming must follow this rule: `{don't care string}_{width}(x|_){height}
 The name of a test sequence should look like this: `gipsrecstat_1280_720_50.yuv` or `gipsrecstat_1280x720_50.yuv`.
 
 You can use `generate-yuv` tool to convert the mp4, flv, webm video to yuv video.
+
+# Use docker
+
+```
+# build
+docker build -t codecs-runner ./
+
+# mount directory on the container
+# notice: set seq_path to ./work, output_path to ./result, base path is /data/codecs-runner
+docker run -it -v /home/codecs_videos:/data/codecs-runner/work -v /home/codecs_result:/data/codecs-runner/result codecs-runner /bin/bash
+```
