@@ -46,8 +46,11 @@ class VideoFile(object):
         return float(self.frame_count()) / self.framerate
 
 
-def generate_seqs(name):
-    yuv_files = glob.glob(os.path.join(name, '*.yuv'))
+support_ext = '.yuv'
+
+def generate_seqs(name: str):
+    set_ext = os.path.splitext(name)[1]
+    yuv_files = glob.glob(name if set_ext == support_ext else os.path.join(name, '*.yuv'))
     my_set = set()
     for yuv_file in yuv_files:
         video_file = VideoFile(yuv_file)
@@ -55,5 +58,5 @@ def generate_seqs(name):
     return my_set
 
 
-def pick_seqs(name):
+def pick_seqs(name: str):
     return generate_seqs(name)

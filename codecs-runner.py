@@ -1,9 +1,9 @@
 import sys
 import argparse
 import json
-import os
+import traceback
 
-from lib import seq_picker, task_parser, summary
+from lib import task_parser, summary
 
 
 def main():
@@ -11,31 +11,29 @@ def main():
     parser.add_argument('-c', '--config', type=str, required=True, help='Enter the path of the task config json. ')
     args = parser.parse_args()
     config_file = open(args.config)
-    config = json.load(config_file)
-    seq_path = config.get('seq_path')
-    if not seq_path or not os.path.exists(seq_path):
-        print('Invalid sequence path')
-        return 0
+    config = json.load(config_file) # type: dict
+    
     if not config.get('tasks') or not len(config.get('tasks')):
         print('Invalid tasks config')
         return 0
-    output_path = config.get('output_path', './result')
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    seqs_video_file = seq_picker.pick_seqs(seq_path)
-    tasks = task_parser.generate_tasks(config)
+    
+    tasks = task_parser.generate_tasks(config) # type: list[task_parser.Task]
+    if not len(tasks):
+        print('No tasks to run!')
+        return 0
 
     try:
         for task in tasks:
-            task_results = task.run(seqs_video_file)
+            task_results = task.run()
             summary.record_task_results(task_results)
     except KeyboardInterrupt:
-        print('Interrupted')
+        print('Interrupted by user')
     except Exception as e:
-        print(e)
+        print('Run task error: \n%s' % traceback.format_exc())
 
     # save
-    summary.save(os.path.join(output_path, 'encoder_result.xlsx'))
+    summary_path = config.get('summary_path', './result/encoder_result.xlsx')
+    summary.save(summary_path)
     return 0
 
 

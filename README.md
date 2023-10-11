@@ -4,8 +4,8 @@ A good tool to help you encode video and test video quality.
 
 # Dependencies
 
-* python3, pip3
-* ffmpeg installed
+* python3.7, pip3
+* ffmpeg 5.1 installed
 
 install requirements:
 
@@ -53,7 +53,7 @@ codecs-runner config is very flexible, but you need to follow some principles:
     - `height` - yuv video height
     - `framerate` - yuv video framerate
     - `output_filename` computed output path with `output_path` config
-* `"use_task_bitrate": "{task_name}",` and `"repeat_target": "bitrate"` is for two-pass encoding. Because multi-pass encoding needs to use the encoded special bit rate.
+* `"use_bitrate_by_task_name": "{task_name}",` and `"repeat_target": "{the bitrate key you want use for template}"` is for two-pass encoding. Because multi-pass encoding needs to use the encoded special bit rate.
 
 **Notice**: The configuration items mentioned above are special for codecs runner, please do not overwrite them!
 

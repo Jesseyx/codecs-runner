@@ -38,10 +38,10 @@
     },
     {
       "task_name": "x264 two-pass",
-      "use_task_bitrate": "x264 crf",
-      "repeat_target": "bitrate",
+      "use_bitrate_by_task_name": "x264 crf",
+      "repeat_target": "_bitrate",
       "output_format": "mp4",
-      "template": "{encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {bitrate}K -refs 4 -g 60 -keyint_min 60 -pass 1 -f {output_format} /dev/null && {encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {bitrate}K -refs 4 -g 60 -keyint_min 60 -pass 2 -f {output_format} {output_filename}"
+      "template": "{encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {_bitrate}K -refs 4 -g 60 -keyint_min 60 -pass 1 -f {output_format} /dev/null && {encoder} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {_bitrate}K -refs 4 -g 60 -keyint_min 60 -pass 2 -f {output_format} {output_filename}"
     },
     {
       "task_name": "x264 live",

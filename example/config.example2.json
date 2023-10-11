@@ -1,0 +1,37 @@
+{
+  "ffmpeg": "ffmpeg",
+  "ffprobe": "ffprobe",
+  "seq_path": "./work/test/test_20m_1280x720_30.yuv",
+  "output_path": "./result",
+  "quality_target": "./example/quality_target_list.py",
+  "tasks": [
+    {
+      "task_name": "x264 crf",
+      "crf": [
+        35, 39
+      ],
+      "repeat_target": "crf",
+      "output_format": "mp4",
+      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -preset veryslow -crf {crf} -refs 4 -g 60 -keyint_min 60 -f {output_format} {output_filename}"
+    },
+    {
+      "task_name": "x264 two-pass",
+      "use_bitrate_by_task_name": "x264 crf",
+      "repeat_target": "_bitrate",
+      "output_format": "mp4",
+      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {_bitrate}K -pass 1 -f null - && {ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v libx264 -pix_fmt yuv420p -profile:v high -preset veryslow -b:v {_bitrate}K -pass 2 -f {output_format} {output_filename}"
+    },
+    {
+      "task_name": "qvbr",
+      "repeat_target": "quality_target",
+      "output_format": "mp4",
+      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v hevc_nvenc -rc 1 -preset p1 -tune 3 -profile:v main -level:v auto -cq {quality_target['quality']} -maxrate {quality_target['b'] * 1.2}k -bufsize {quality_target['b'] * 1.2 * 2}k -g {framerate * 2} -r {framerate} -2pass 0 -rc-lookahead 0 -bf 2 -temporal-aq 0 -colorspace smpte170m -color_primaries smpte170m -color_trc smpte170m -c:a copy {output_filename}"
+    },
+    {
+      "task_name": "qvbr2",
+      "repeat_target": "quality_target",
+      "output_format": "mp4",
+      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v hevc_nvenc -rc 1 -preset p1 -tune 3 -profile:v main -level:v auto -cq {quality_target['quality']} -maxrate {quality_target['b'] * 1.2}k -bufsize {quality_target['b'] * 1.2 * 2}k -g {framerate * 2} -r {framerate} -2pass 0 -rc-lookahead 0 -bf 2 -temporal-aq 0 -colorspace smpte170m -color_primaries smpte170m -color_trc smpte170m -c:a copy {output_filename}"
+    }
+  ]
+}
