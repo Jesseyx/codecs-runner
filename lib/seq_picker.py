@@ -51,11 +51,11 @@ support_ext = '.yuv'
 def generate_seqs(name: str):
     set_ext = os.path.splitext(name)[1]
     yuv_files = glob.glob(name if set_ext == support_ext else os.path.join(name, '*.yuv'))
-    my_set = set()
+    my_list = []
     for yuv_file in yuv_files:
         video_file = VideoFile(yuv_file)
-        my_set.add(video_file)
-    return my_set
+        my_list.append(video_file)
+    return my_list
 
 
 def pick_seqs(name: str):

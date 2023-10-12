@@ -1,7 +1,7 @@
 {
   "ffmpeg": "ffmpeg",
   "ffprobe": "ffprobe",
-  "seq_path": "./work/test/test_20m_1280x720_30.yuv",
+  "seq_path": "./work/test/*_30.yuv",
   "output_path": "./result",
   "quality_target": "./example/quality_target_list.py",
   "tasks": [

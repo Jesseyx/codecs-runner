@@ -306,8 +306,8 @@ def generate_tasks(config: dict):
 
         # check seq and output path
         seq_path = task_config.get('seq_path')
-        if not seq_path or not os.path.exists(seq_path):
-            print(f'Invalid sequence path for task {task_config["task_name"]}, ignore!')
+        if not seq_path or (os.path.isdir(seq_path) and not os.path.exists(seq_path)):
+            print(f'Invalid sequence path {seq_path} for task {task_config["task_name"]}, ignore!')
             continue
 
         output_path = task_config.get('output_path')

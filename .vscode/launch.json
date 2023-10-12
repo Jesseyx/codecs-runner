@@ -12,7 +12,6 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": ["-c", "./example/config.example2.json"],
-            "python": "C:\\Users\\Admin\\AppData\\Local\\Microsoft\\WindowsApps\\python3.7.exe",
             "cwd": "${workspaceFolder}"
         }
     ]
