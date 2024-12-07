@@ -12,5 +12,5 @@ def get_qvbr2_quality_list():
             arr.append({ 'b': b, 'quality': quality})
     return arr
 
-qvbr = get_qvbr_quality_list() # notice: there qvbr and qvbr2 is the task name for search data
+qvbr = get_qvbr_quality_list() # notice: there qvbr and qvbr2 is the task name for search data. if not find special task, default will use for all task.
 qvbr2 = get_qvbr2_quality_list()

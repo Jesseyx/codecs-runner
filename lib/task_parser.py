@@ -183,7 +183,7 @@ class Task(object):
                     code = compile(fh.read(), '', 'exec')
                     code_res = {}
                     exec(code, None, code_res)
-                    repeat_list = code_res.get(config['task_name'])
+                    repeat_list = code_res.get(config['task_name']) or code_res.get('default')
                 except:
                     print('Compile and compute repeat_list error for %s!' % config['task_name'])
                 else:
