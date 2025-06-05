@@ -15,29 +15,30 @@ class VideoFile(object):
         """ Parse the file name to find width, height and framerate. """
         self.filename = filename
         self.name = os.path.basename(filename)
-        match = re.search(r'_(\d+)x(\d+)_(\d+)', filename)
-        if match:
-            self.width = int(match.group(1))
-            self.height = int(match.group(2))
-            self.framerate = int(match.group(3))
-        else:
-            match = re.search(r'_(\d+)_(\d+)_(\d+).yuv$', filename)
+        self.basename = os.path.splitext(self.name)[0]
+        self.ext = os.path.splitext(filename)[1]
+
+        if self.ext == '.yuv':
+            match = re.search(r'_(\d+)x(\d+)_(\d+)', filename)
             if match:
                 self.width = int(match.group(1))
                 self.height = int(match.group(2))
                 self.framerate = int(match.group(3))
             else:
-                video_properties = get_video_properties(config['ffprobe'], filename)
-                self.width = video_properties['width']
-                self.height = video_properties['height']
-                self.framerate = round(eval(video_properties['r_frame_rate']))
-                self.framecount = float(video_properties['nb_frames'])
+                match = re.search(r'_(\d+)_(\d+)_(\d+).yuv$', filename)
+                if match:
+                    self.width = int(match.group(1))
+                    self.height = int(match.group(2))
+                    self.framerate = int(match.group(3))
+        else:
+            video_properties = get_video_properties(config['ffprobe'], filename)
+            self.width = video_properties['width']
+            self.height = video_properties['height']
+            self.framerate = round(eval(video_properties['r_frame_rate']))
+            self.framecount = float(video_properties['nb_frames'])
         
         if not self.width and not self.height:
             raise Error("Unable to parse filename " + filename)
-
-        self.basename = os.path.splitext(self.name)[0]
-        self.ext = os.path.splitext(filename)[1]
 
     def measured_bitrate(self, encoded_size: int):
         """Returns bitrate of an encoded file in kilobits per second.
