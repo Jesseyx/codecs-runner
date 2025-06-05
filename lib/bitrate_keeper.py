@@ -2,7 +2,7 @@ class BitrateKeeper:
     def __init__(self):
         self.stores = {}
 
-    def set_bitrate(self, task_name, filename, bitrate):
+    def set_bitrate(self, task_name: str, filename: str, bitrate: float):
         stores = self.stores
         if not stores.get(task_name):
             stores[task_name] = {}
@@ -11,7 +11,7 @@ class BitrateKeeper:
             task_store[filename] = []
         task_store[filename].append(bitrate)
 
-    def get_bitrate_list(self, task_name, filename=None):
+    def get_bitrate_list(self, task_name: str, filename: str = None) -> dict:
         if filename:
             return self.stores.get(task_name) and self.stores[task_name].get(filename)
         else:

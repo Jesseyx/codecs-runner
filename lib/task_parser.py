@@ -5,30 +5,22 @@ import os
 import json
 import numpy as np
 
-from .seq_picker import pick_seqs
+from .seq_picker import pick_seqs, VideoFile
 from .bitrate_keeper import BitrateKeeper
-from .utils import win_path_check, win_vmaf_model_path_check
+from .utils import video_to_yuv, get_video_properties, win_path_check, win_vmaf_model_path_check
 
 
 keeper = BitrateKeeper()
 
 
-def get_video_properties(ffprobe: str, video_path: str):
-    if not os.path.isfile(video_path) or not os.access(video_path, os.R_OK):
-        raise RuntimeError(f'File not found or inaccessible: {video_path}')
+def calculate_scores(seq_config: dict, video_file: VideoFile):
+    # check ref yuv
+    ref_yuv_file = video_file.filename
+    if video_file.ext != '.yuv':
+        ref_yuv_file = re.sub(r'\.([A-Za-z0-9]+)', '.yuv', video_file.filename)
+        if not os.path.isfile(ref_yuv_file):
+            video_to_yuv(seq_config['ffmpeg'], video_file.filename, ref_yuv_file)
 
-    output = subprocess.check_output(
-        [ffprobe, '-loglevel', 'panic', '-select_streams', 'v:0', '-show_streams', '-print_format', 'json', video_path]
-    )
-    props = json.loads(output)
-
-    if 'streams' not in props or not props['streams']:
-        raise RuntimeError(f'No usable video stream found: {video_path}')
-
-    return props['streams'][0]
-
-
-def calculate_scores(seq_config, video_file):
     output_filename = seq_config['output_filename']
     output_basename = os.path.splitext(os.path.basename(output_filename))[0]
     output_path = os.path.split(output_filename)[0]
@@ -38,12 +30,8 @@ def calculate_scores(seq_config, video_file):
     if os.path.isfile(temp_yuv_file):
         print('Removing temp file before decode:', temp_yuv_file)
         os.unlink(temp_yuv_file)
-    encode_yuv_args = [
-        seq_config['ffmpeg'], '-y', '-loglevel', 'warning', '-i', output_filename, temp_yuv_file
-    ]
-    print(f'Begin encoding temp yuv file with cmd: {" ".join(encode_yuv_args)}...')
-    # generate temp yuv
-    subprocess.run(encode_yuv_args)
+
+    video_to_yuv(seq_config['ffmpeg'], output_filename, temp_yuv_file)
 
     # Detect video width and height
     output_props = get_video_properties(seq_config['ffprobe'], output_filename)
@@ -87,8 +75,10 @@ def calculate_scores(seq_config, video_file):
     '''
     vmaf_run_args = [
         seq_config['ffmpeg'], '-loglevel', 'error', '-stats',
-        '-f', 'rawvideo', '-s', f'{output_width}x{output_height}', '-r', f'{video_file.framerate}', '-i', temp_yuv_file,
-        '-f', 'rawvideo', '-s', f'{input_width}x{input_height}', '-r', f'{video_file.framerate}', '-i', video_file.filename,
+        # '-f', 'rawvideo', '-s', f'{output_width}x{output_height}', '-r', f'{video_file.framerate}', '-i', temp_yuv_file,
+        # '-f', 'rawvideo', '-s', f'{input_width}x{input_height}', '-r', f'{video_file.framerate}', '-i', ref_yuv_file,
+        '-f', 'rawvideo', '-s', f'{output_width}x{output_height}', '-i', temp_yuv_file,
+        '-f', 'rawvideo', '-s', f'{input_width}x{input_height}', '-i', ref_yuv_file,
         '-lavfi',
         f'[0:v]setpts=PTS-STARTPTS{scale_arg}[main];[1:v]setpts=PTS-STARTPTS[ref];[main][ref]'f"libvmaf='{vmaf_options}'",
         '-f', 'null', '-'
@@ -127,7 +117,7 @@ def calculate_scores(seq_config, video_file):
     return scores
 
 
-def run_cmd(seq_config, video_file):
+def run_cmd(seq_config: dict, video_file: VideoFile):
     cmd = seq_config['template']
     print(f'Begin encoding with cmd: {cmd}...')
 
@@ -160,13 +150,13 @@ def create_config(*dict_list):
     return extend_data
 
 
-def compile_template(template):
+def compile_template(template: str):
     template = re.sub(r'{([^[}\+\-\*\/\s]+)(\[?[^}]+)?}', r"{self['\1']\2}", template)
     return eval(f'''lambda self: f"""{template}"""''')
 
 
 class Task(object):
-    def __init__(self, config):
+    def __init__(self, config: dict):
         self.config = config
         self.tmpl_func = compile_template(config['template'])
 
@@ -207,7 +197,7 @@ class Task(object):
         repeat_target = task_config['repeat_target'] if is_repeat else ''
         task_results = []
         
-        videos_file = pick_seqs(task_config.get('seq_path'))
+        videos_file = pick_seqs(task_config.get('seq_path'), task_config)
         for video_file in videos_file:
             file_results = []
             if is_repeat:
@@ -255,7 +245,7 @@ class Task(object):
             'results': task_results
         }
 
-    def _run_seq(self, video_file, repeat_value=None):
+    def _run_seq(self, video_file: VideoFile, repeat_value=None):
         task_config = self.config
         is_repeat = self.is_repeat
         output_format = task_config.get('output_format', 'mp4')

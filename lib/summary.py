@@ -10,7 +10,7 @@ title_cols = ['filename', 'frame count', 'target', 'encode fps', 'bitrate',
               'vmaf', 'vmaf min', 'vmaf std', 'psnr', 'psnr min', 'psnr std', 'ssim', 'ssim min', 'ssim std']
 
 
-def record_task_results(data):
+def record_task_results(data: dict):
     print(data)
     ws = wb.create_sheet(data['task_name'])
     start_row = 1
@@ -49,7 +49,7 @@ def record_task_results(data):
         start_row += 1
 
 
-def save(path):
+def save(path: str):
     if len(wb.sheetnames):
         wb.save(path)
 

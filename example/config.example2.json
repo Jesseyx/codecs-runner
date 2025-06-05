@@ -25,13 +25,20 @@
       "task_name": "qvbr",
       "repeat_target": "quality_target",
       "output_format": "mp4",
-      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v hevc_nvenc -rc 1 -preset p1 -tune 3 -profile:v main -level:v auto -cq {quality_target['quality']} -maxrate {quality_target['b'] * 1.2}k -bufsize {quality_target['b'] * 1.2 * 2}k -g {framerate * 2} -r {framerate} -2pass 0 -rc-lookahead 0 -bf 2 -temporal-aq 0 -colorspace smpte170m -color_primaries smpte170m -color_trc smpte170m -c:a copy {output_filename}"
+      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v hevc_nvenc -rc 1 -preset p1 -tune 3 -profile:v main -level:v auto -cq {quality_target['quality']} -maxrate {quality_target['b'] * 1.2}k -bufsize {quality_target['b'] * 1.2 * 2}k -g {framerate * 2} -r {framerate} -2pass 0 -rc-lookahead 0 -bf 2 -temporal-aq 0 -c:a copy {output_filename}"
     },
     {
       "task_name": "qvbr2",
       "repeat_target": "quality_target",
       "output_format": "mp4",
-      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v hevc_nvenc -rc 1 -preset p1 -tune 3 -profile:v main -level:v auto -cq {quality_target['quality']} -maxrate {quality_target['b'] * 1.2}k -bufsize {quality_target['b'] * 1.2 * 2}k -g {framerate * 2} -r {framerate} -2pass 0 -rc-lookahead 0 -bf 2 -temporal-aq 0 -colorspace smpte170m -color_primaries smpte170m -color_trc smpte170m -c:a copy {output_filename}"
+      "template": "{ffmpeg} -y -f rawvideo -s {width}x{height} -r {framerate} -pix_fmt yuv420p -i {filename} -c:v hevc_nvenc -rc 1 -preset p1 -tune 3 -profile:v main -level:v auto -cq {quality_target['quality']} -maxrate {quality_target['b'] * 1.2}k -bufsize {quality_target['b'] * 1.2 * 2}k -g {framerate * 2} -r {framerate} -2pass 0 -rc-lookahead 0 -bf 2 -temporal-aq 0 -c:a copy {output_filename}"
+    },
+    {
+      "task_name": "qvbr_720 with scale & keep colorspace",
+      "seq_path": "./work/test/*_30.mp4",
+      "repeat_target": "quality_target",
+      "output_format": "mp4",
+      "template": "{ffmpeg} -y -i {filename} -vf \"scale='if(eq(iw,1920),1280,720)':-1:force_original_aspect_ratio=disable\" -c:v hevc_nvenc -rc 1 -preset p1 -tune 3 -profile:v main -level:v auto -cq {quality_target['quality']} -maxrate {quality_target['b'] * 1.2}k -bufsize {quality_target['b'] * 1.2 * 2}k -g {framerate * 2} -r {framerate} -2pass 0 -rc-lookahead 0 -bf 2 -temporal-aq 0 -c:a copy {output_filename}"
     }
   ]
 }

@@ -2,6 +2,8 @@ import glob
 import os
 import re
 
+from .utils import get_video_properties
+
 
 class Error(Exception):
     """Generic errors in all Encoder-related problems."""
@@ -9,7 +11,7 @@ class Error(Exception):
 
 
 class VideoFile(object):
-    def __init__(self, filename):
+    def __init__(self, filename: str, config: dict):
         """ Parse the file name to find width, height and framerate. """
         self.filename = filename
         self.name = os.path.basename(filename)
@@ -25,10 +27,19 @@ class VideoFile(object):
                 self.height = int(match.group(2))
                 self.framerate = int(match.group(3))
             else:
-                raise Error("Unable to parse filename " + filename)
-        self.basename = os.path.splitext(self.name)[0]
+                video_properties = get_video_properties(config['ffprobe'], filename)
+                self.width = video_properties['width']
+                self.height = video_properties['height']
+                self.framerate = round(eval(video_properties['r_frame_rate']))
+                self.framecount = float(video_properties['nb_frames'])
+        
+        if not self.width and not self.height:
+            raise Error("Unable to parse filename " + filename)
 
-    def measured_bitrate(self, encoded_size):
+        self.basename = os.path.splitext(self.name)[0]
+        self.ext = os.path.splitext(filename)[1]
+
+    def measured_bitrate(self, encoded_size: int):
         """Returns bitrate of an encoded file in kilobits per second.
 
         Argument: Encoded file size in bytes.
@@ -38,6 +49,8 @@ class VideoFile(object):
         return round(encoded_frame_size * self.framerate * 8 / 1000, 2)
 
     def frame_count(self):
+        if hasattr(self, 'framecount'):
+            return self.framecount
         # YUV is 8 bits per pixel for Y, 1/4 that for each of U and V.
         frame_size = self.width * self.height * 3 / 2
         return os.path.getsize(self.filename) / frame_size
@@ -45,18 +58,17 @@ class VideoFile(object):
     def clip_time(self):
         return float(self.frame_count()) / self.framerate
 
-
-support_ext = '.yuv'
-
-def generate_seqs(name: str):
+def generate_seqs(name: str, config: dict):
     set_ext = os.path.splitext(name)[1]
-    yuv_files = glob.glob(name if set_ext == support_ext else os.path.join(name, '*.yuv'))
+    if not set_ext:
+        print('Not set sequence ext, will use yuv')
+    seq_files = glob.glob(name if set_ext else os.path.join(name, '*.yuv'))
     my_list = []
-    for yuv_file in yuv_files:
-        video_file = VideoFile(yuv_file)
+    for seq_file in seq_files:
+        video_file = VideoFile(seq_file, config)
         my_list.append(video_file)
     return my_list
 
 
-def pick_seqs(name: str):
-    return generate_seqs(name)
+def pick_seqs(name: str, config: dict):
+    return generate_seqs(name, config)
