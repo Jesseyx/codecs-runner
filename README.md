@@ -4,7 +4,7 @@ A good tool to help you encode video and test video quality.
 
 # Dependencies
 
-* python3.10+, pip3
+* python3.10+~3.12, pip3
 * ffmpeg 5.1 installed
 
 install requirements:
